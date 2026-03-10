@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}logMaster{% endblock %}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0f1117;
+      --surface: #1a1d27;
+      --border:  #2e3244;
+      --accent:  #6c8ef7;
+      --accent2: #4ade80;
+      --text:    #e2e8f0;
+      --muted:   #64748b;
+      --danger:  #f87171;
+      --warn:    #fbbf24;
+      --info:    #38bdf8;
+      --radius:  6px;
+      --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Nav ── */
+    nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      display: flex;
+      align-items: center;
+      height: 54px;
+      gap: 1rem;
+    }
+    nav .brand {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-decoration: none;
+      letter-spacing: -0.02em;
+    }
+    nav .brand span { color: var(--accent2); }
+    nav .spacer { flex: 1; }
+    nav .user { font-size: 0.85rem; color: var(--muted); }
+    nav a.btn-logout {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: var(--radius);
+      transition: color .15s, border-color .15s;
+    }
+    nav a.btn-logout:hover { color: var(--text); border-color: var(--muted); }
+
+    /* ── Main layout ── */
+    main { flex: 1; padding: 2rem 1.5rem; max-width: 1200px; margin: 0 auto; width: 100%; }
+
+    /* ── Flash messages ── */
+    .flashes { list-style: none; margin-bottom: 1.25rem; display: flex; flex-direction: column; gap: .5rem; }
+    .flash {
+      padding: .6rem 1rem;
+      border-radius: var(--radius);
+      font-size: .875rem;
+      border-left: 3px solid;
+    }
+    .flash.error  { background: #2d1515; border-color: var(--danger); color: var(--danger); }
+    .flash.info   { background: #0d2235; border-color: var(--info); color: var(--info); }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+    }
+    .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 1.25rem; color: var(--text); }
+
+    /* ── Form ── */
+    .form-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; }
+    .field { display: flex; flex-direction: column; gap: .35rem; flex: 1; min-width: 180px; }
+    .field label { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    .field input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: .5rem .75rem;
+      font-size: .9rem;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .field input:focus { border-color: var(--accent); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      padding: .5rem 1.2rem;
+      border-radius: var(--radius);
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-primary { background: var(--accent); color: #fff; }
+
+    {% block extra_style %}{% endblock %}
+  </style>
+</head>
+<body>
+
+<nav>
+  <a class="brand" href="/">log<span>Master</span></a>
+  <div class="spacer"></div>
+  {% if user %}
+    <span class="user">{{ user.name }}</span>
+    <a class="btn-logout" href="/logout">Sign out</a>
+  {% endif %}
+</nav>
+
+<main>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="flashes">
+        {% for category, message in messages %}
+          <li class="flash {{ category }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+
+</body>
+</html>
