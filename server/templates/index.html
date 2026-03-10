@@ -1,55 +1,96 @@
 {% extends "base.html" %}
-{% block title %}logMaster — Query Logs{% endblock %}
+{% block title %}logMaster — {{ active_tab or "Query Logs" }}{% endblock %}
 
 {% block extra_style %}
 .hero { margin-bottom: 1.5rem; }
 .hero h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: .25rem; }
 .hero p  { font-size: .875rem; color: var(--muted); }
+.service-label {
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  margin-bottom: .35rem;
+}
+.service-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .5rem .75rem;
+  font-size: .9rem;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+.no-services {
+  color: var(--muted);
+  font-size: .875rem;
+  padding: 2rem;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
 {% endblock %}
 
 {% block content %}
 <div class="hero">
-  <h1>Journal Log Viewer</h1>
-  <p>Query systemd journal entries by service and time range.</p>
+  {% if active_tab %}
+    {% set active_svc = services | selectattr("service_name", "equalto", active_tab) | first %}
+    <h1>{{ active_svc.name if active_svc else active_tab }}</h1>
+    <p>Select a time range to query journal entries.</p>
+  {% else %}
+    <h1>Journal Log Viewer</h1>
+    <p>Select a service tab above to begin.</p>
+  {% endif %}
 </div>
 
-<div class="card">
-  <h2>Query Parameters</h2>
-  <form method="POST" action="/logs">
-    <div class="form-row">
-      <div class="field" style="min-width:220px; flex:2">
-        <label for="service_name">Service (unit) name</label>
-        <input
-          type="text"
-          id="service_name"
-          name="service_name"
-          placeholder="e.g. nginx.service"
-          required
-          autocomplete="off"
-        />
+{% if services %}
+  <div class="card">
+    <h2>Query Parameters</h2>
+    <form method="POST" action="/logs">
+      {# Service name comes from the active tab — hidden from the user #}
+      <input type="hidden" name="service_name" value="{{ active_tab }}" />
+
+      <div class="form-row" style="margin-bottom:1.25rem">
+        <div>
+          <div class="service-label">Service</div>
+          <div class="service-badge">
+            <span style="color:var(--accent2)">&#9679;</span>
+            {{ active_tab }}
+          </div>
+        </div>
       </div>
-      <div class="field">
-        <label for="start_date">Start date</label>
-        <input
-          type="datetime-local"
-          id="start_date"
-          name="start_date"
-          value="{{ yesterday }}T00:00"
-          required
-        />
+
+      <div class="form-row">
+        <div class="field">
+          <label for="start_date">Start</label>
+          <input
+            type="datetime-local"
+            id="start_date"
+            name="start_date"
+            value="{{ yesterday }}"
+            required
+          />
+        </div>
+        <div class="field">
+          <label for="end_date">End</label>
+          <input
+            type="datetime-local"
+            id="end_date"
+            name="end_date"
+            value="{{ today }}"
+            required
+          />
+        </div>
+        <button type="submit" class="btn btn-primary">Fetch Logs</button>
       </div>
-      <div class="field">
-        <label for="end_date">End date</label>
-        <input
-          type="datetime-local"
-          id="end_date"
-          name="end_date"
-          value="{{ today }}T23:59"
-          required
-        />
-      </div>
-      <button type="submit" class="btn btn-primary">Fetch Logs</button>
-    </div>
-  </form>
-</div>
+    </form>
+  </div>
+{% else %}
+  <div class="no-services">
+    No services configured. Add entries to <code>config.json</code>.
+  </div>
+{% endif %}
 {% endblock %}

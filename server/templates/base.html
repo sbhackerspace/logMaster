@@ -31,8 +31,8 @@
       flex-direction: column;
     }
 
-    /* ── Nav ── */
-    nav {
+    /* ── Top nav ── */
+    nav.topnav {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       padding: 0 1.5rem;
@@ -41,17 +41,17 @@
       height: 54px;
       gap: 1rem;
     }
-    nav .brand {
+    nav.topnav .brand {
       font-size: 1.1rem;
       font-weight: 700;
       color: var(--accent);
       text-decoration: none;
       letter-spacing: -0.02em;
     }
-    nav .brand span { color: var(--accent2); }
-    nav .spacer { flex: 1; }
-    nav .user { font-size: 0.85rem; color: var(--muted); }
-    nav a.btn-logout {
+    nav.topnav .brand span { color: var(--accent2); }
+    nav.topnav .spacer { flex: 1; }
+    nav.topnav .user { font-size: 0.85rem; color: var(--muted); }
+    nav.topnav a.btn-logout {
       font-size: 0.8rem;
       color: var(--muted);
       text-decoration: none;
@@ -60,7 +60,43 @@
       border-radius: var(--radius);
       transition: color .15s, border-color .15s;
     }
-    nav a.btn-logout:hover { color: var(--text); border-color: var(--muted); }
+    nav.topnav a.btn-logout:hover { color: var(--text); border-color: var(--muted); }
+
+    /* ── Service tab bar ── */
+    nav.tabnav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      display: flex;
+      align-items: flex-end;
+      gap: 0;
+      overflow-x: auto;
+    }
+    nav.tabnav a.tab {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      padding: .6rem 1.1rem;
+      font-size: .85rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-decoration: none;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+      transition: color .15s, border-color .15s;
+    }
+    nav.tabnav a.tab:hover { color: var(--text); }
+    nav.tabnav a.tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    nav.tabnav a.tab .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+    }
+    nav.tabnav a.tab.active .dot { background: var(--accent2); }
 
     /* ── Main layout ── */
     main { flex: 1; padding: 2rem 1.5rem; max-width: 1200px; margin: 0 auto; width: 100%; }
@@ -115,13 +151,14 @@
     }
     .btn:hover { opacity: .85; }
     .btn-primary { background: var(--accent); color: #fff; }
+    .btn-back { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
 
     {% block extra_style %}{% endblock %}
   </style>
 </head>
 <body>
 
-<nav>
+<nav class="topnav">
   <a class="brand" href="/">log<span>Master</span></a>
   <div class="spacer"></div>
   {% if user %}
@@ -129,6 +166,18 @@
     <a class="btn-logout" href="/logout">Sign out</a>
   {% endif %}
 </nav>
+
+{% if services %}
+<nav class="tabnav">
+  {% for svc in services %}
+    <a class="tab {% if svc.service_name == active_tab %}active{% endif %}"
+       href="/?tab={{ svc.service_name | urlencode }}">
+      <span class="dot"></span>
+      {{ svc.name }}
+    </a>
+  {% endfor %}
+</nav>
+{% endif %}
 
 <main>
   {% with messages = get_flashed_messages(with_categories=true) %}

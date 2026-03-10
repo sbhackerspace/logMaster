@@ -1,0 +1,8 @@
+{
+  "services": [
+    { "name": "Nginx",      "service_name": "nginx.service" },
+    { "name": "SSH",        "service_name": "sshd.service" },
+    { "name": "Postgresql", "service_name": "postgresql.service" },
+    { "name": "Redis",      "service_name": "redis.service" }
+  ]
+}

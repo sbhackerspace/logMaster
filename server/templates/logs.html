@@ -11,8 +11,17 @@
   margin-bottom: 1.25rem;
 }
 .toolbar h1 { font-size: 1.2rem; font-weight: 700; flex: 1; }
-.toolbar .meta { font-size: .8rem; color: var(--muted); }
-.btn-back { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.toolbar .meta { font-size: .8rem; color: var(--muted); font-family: var(--font-mono); }
+.badge {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  font-size: .7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
 
 /* ── search bar ── */
 .search-bar {
@@ -31,16 +40,6 @@
   outline: none;
 }
 .search-bar input:focus { border-color: var(--accent); }
-.badge {
-  display: inline-block;
-  background: var(--accent);
-  color: #fff;
-  font-size: .7rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
-  vertical-align: middle;
-}
 
 /* ── log table ── */
 .log-wrap {
@@ -96,12 +95,13 @@ td.msg { word-break: break-word; color: var(--text); }
 
 {% block content %}
 <div class="toolbar">
-  <h1>{{ service_name }}</h1>
+  {% set active_svc = services | selectattr("service_name", "equalto", service_name) | first %}
+  <h1>{{ active_svc.name if active_svc else service_name }}</h1>
   <span class="meta">{{ start_date }} → {{ end_date }}</span>
   {% if log_data %}
     <span class="badge">{{ log_data.count }} entries</span>
   {% endif %}
-  <a href="/" class="btn btn-back">&#8592; New query</a>
+  <a href="/?tab={{ service_name | urlencode }}" class="btn btn-back">&#8592; New query</a>
 </div>
 
 {% if api_error %}
@@ -130,8 +130,6 @@ td.msg { word-break: break-word; color: var(--text); }
           {% set pri   = e.get("PRIORITY", "6") | string %}
           {% set pid   = e.get("_PID", "") %}
           {% set msg   = e.get("MESSAGE", "") %}
-          {# Convert microsecond epoch to readable string via Jinja filter workaround:
-             we pass raw ts and format it client-side via data attribute #}
           <tr data-msg="{{ msg | lower }}">
             <td class="ts">
               {% if ts_us %}
