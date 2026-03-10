@@ -37,7 +37,7 @@ oauth.register(
     name="authentik",
     client_id=CLIENT_ID,
     client_secret=CLIENT_SECRET,
-    server_metadata_url=f"{AUTHENTIK_BASE_URL}/application/o/{CLIENT_ID}/.well-known/openid-configuration",
+    server_metadata_url=f"{AUTHENTIK_BASE_URL}/application/o/logs/.well-known/openid-configuration",
     client_kwargs={"scope": "openid profile email"},
 )
 
