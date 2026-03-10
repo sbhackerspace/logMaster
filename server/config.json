@@ -1,8 +1,8 @@
 {
   "services": [
-    { "name": "Nginx",      "service_name": "nginx.service" },
-    { "name": "SSH",        "service_name": "sshd.service" },
-    { "name": "Postgresql", "service_name": "postgresql.service" },
-    { "name": "Redis",      "service_name": "redis.service" }
+    { "name": "Nginx",      "service_name": "nginx.service",      "address": "http://127.0.0.1:5001" },
+    { "name": "SSH",        "service_name": "sshd.service",        "address": "http://127.0.0.1:5001" },
+    { "name": "Postgresql", "service_name": "postgresql.service", "address": "http://127.0.0.1:5001" },
+    { "name": "Redis",      "service_name": "redis.service",      "address": "http://127.0.0.1:5001" }
   ]
 }

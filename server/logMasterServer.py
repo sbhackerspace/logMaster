@@ -50,16 +50,14 @@ LOG_API_SHARED_SECRET = os.environ.get("LOG_API_SHARED_SECRET", "")
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
 
+with open(CONFIG_PATH) as _f:
+    _config = json.load(_f)
 
-def load_services():
-    """Load service list from config.json. Reloads on every call so edits
-    take effect without a server restart."""
-    try:
-        with open(CONFIG_PATH) as f:
-            data = json.load(f)
-        return data.get("services", [])
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []
+# Ordered list for tab rendering
+SERVICES: list[dict] = _config.get("services", [])
+
+# Map for O(1) lookup by service_name
+SERVICES_MAP: dict[str, dict] = {s["service_name"]: s for s in SERVICES}
 
 
 # ── Auth helpers ─────────────────────────────────────────────────────────────
@@ -79,12 +77,9 @@ def login_required(f):
 @app.route("/")
 @login_required
 def index():
-    services = load_services()
-    # Determine active tab: query param → first service → None
     active_tab = request.args.get("tab", "")
-    service_names = [s["service_name"] for s in services]
-    if active_tab not in service_names:
-        active_tab = service_names[0] if service_names else ""
+    if active_tab not in SERVICES_MAP:
+        active_tab = SERVICES[0]["service_name"] if SERVICES else ""
 
     today = datetime.now().strftime("%Y-%m-%dT%H:%M")
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M")
@@ -92,7 +87,7 @@ def index():
     return render_template(
         "index.html",
         user=session["user"],
-        services=services,
+        services=SERVICES,
         active_tab=active_tab,
         today=today,
         yesterday=yesterday,
@@ -102,7 +97,6 @@ def index():
 @app.route("/logs", methods=["POST"])
 @login_required
 def fetch_logs():
-    services = load_services()
     service_name = request.form.get("service_name", "").strip()
     start_date = request.form.get("start_date", "").strip()
     end_date = request.form.get("end_date", "").strip()
@@ -124,6 +118,9 @@ def fetch_logs():
             flash(e, "error")
         return redirect(url_for("index"))
 
+    # Resolve daemon address via map lookup, fall back to global LOG_API_URL
+    daemon_url = SERVICES_MAP.get(service_name, {}).get("address", LOG_API_URL).rstrip("/")
+
     payload = {
         "shared_secret": LOG_API_SHARED_SECRET,
         "service_name": service_name,
@@ -136,7 +133,7 @@ def fetch_logs():
 
     try:
         resp = requests.post(
-            f"{LOG_API_URL}/logs",
+            f"{daemon_url}/logs",
             json=payload,
             timeout=35,
         )
@@ -154,7 +151,7 @@ def fetch_logs():
     return render_template(
         "logs.html",
         user=session["user"],
-        services=services,
+        services=SERVICES,
         active_tab=service_name,
         service_name=service_name,
         start_date=start_date,
