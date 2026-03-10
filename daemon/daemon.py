@@ -77,16 +77,26 @@ def get_logs():
     if result.returncode not in (0, 1):  # 1 = no entries found, which is fine
         return jsonify({"error": "journalctl error", "detail": result.stderr.strip()}), 500
 
-    # journalctl --output=json emits one JSON object per line
+    # journalctl --output=json emits one JSON object per line.
+    # Fields that contain non-UTF-8 data are represented as arrays of
+    # byte integers — decode them back to strings so every entry is a
+    # flat key→string map.
     entries = []
     for line in result.stdout.splitlines():
         line = line.strip()
         if not line:
             continue
         try:
-            entries.append(json.loads(line))
+            entry = json.loads(line)
         except json.JSONDecodeError:
-            pass  # skip malformed lines
+            continue
+        for key, value in entry.items():
+            if isinstance(value, list):
+                try:
+                    entry[key] = bytes(value).decode("utf-8", errors="replace")
+                except (TypeError, ValueError):
+                    entry[key] = str(value)
+        entries.append(entry)
 
     return jsonify({
         "service": service_name,
