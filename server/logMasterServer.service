@@ -1,0 +1,26 @@
+[Unit]
+Description=logMaster Server - Journal Log Viewer Web App
+Documentation=https://github.com/your-org/logMaster
+After=network.target logMasterDaemon.service
+Wants=logMasterDaemon.service
+
+[Service]
+Type=simple
+User=logmaster
+Group=logmaster
+WorkingDirectory=/root/logmaster/server
+EnvironmentFile=/root/logmaster/server/.env
+ExecStart=/root/logmaster/server/.venv/bin/python logMasterServer.py
+Restart=on-failure
+RestartSec=5
+SyslogIdentifier=logmaster-server
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/root/logmaster/server
+
+[Install]
+WantedBy=multi-user.target

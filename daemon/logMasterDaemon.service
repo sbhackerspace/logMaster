@@ -1,0 +1,28 @@
+[Unit]
+Description=logMaster Daemon - journald Log API
+Documentation=https://github.com/your-org/logMaster
+After=network.target systemd-journald.service
+Wants=systemd-journald.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/logmaster/daemon
+EnvironmentFile=/root/logmaster/daemon/.env
+ExecStart=/root/logmaster/daemon/.venv/bin/python logMasterDaemon.py
+Restart=on-failure
+RestartSec=5
+
+# The daemon needs to read the journal. Add logmaster user to the
+# systemd-journal group (see setup.sh) instead of running as root.
+SupplementaryGroups=systemd-journal
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/root/logmaster/daemon
+
+[Install]
+WantedBy=multi-user.target
