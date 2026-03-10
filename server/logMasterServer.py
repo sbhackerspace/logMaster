@@ -30,6 +30,7 @@ app.secret_key = os.environ.get("APP_SECRET_KEY", secrets.token_hex(32))
 AUTHENTIK_BASE_URL = os.environ.get("AUTHENTIK_BASE_URL", "").rstrip("/")
 CLIENT_ID = os.environ.get("AUTHENTIK_CLIENT_ID", "")
 CLIENT_SECRET = os.environ.get("AUTHENTIK_CLIENT_SECRET", "")
+REDIRECT_URI = os.environ.get("AUTHENTIK_REDIRECT_URI", "")
 
 oauth = OAuth(app)
 oauth.register(
@@ -165,7 +166,7 @@ def fetch_logs():
 
 @app.route("/login")
 def login():
-    redirect_uri = url_for("auth_callback", _external=True)
+    redirect_uri = REDIRECT_URI or url_for("auth_callback", _external=True)
     nonce = secrets.token_urlsafe(16)
     session["oidc_nonce"] = nonce
     return oauth.authentik.authorize_redirect(redirect_uri, nonce=nonce)
