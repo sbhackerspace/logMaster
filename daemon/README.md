@@ -115,6 +115,71 @@ Each entry is a raw journald JSON object. Commonly used fields:
 | `500` | `journalctl` not found or server misconfigured |
 | `504` | `journalctl` timed out (30 s limit) |
 
+## Querying from the CLI
+
+### curl
+
+```bash
+curl -s -X POST http://127.0.0.1:5001/logs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "shared_secret": "your-shared-secret",
+    "service_name":  "nginx.service",
+    "start_date":    "2024-01-15 00:00:00",
+    "end_date":      "2024-01-15 23:59:59"
+  }' | python3 -m json.tool
+```
+
+### Python (one-liner)
+
+```bash
+python3 -c "
+import requests, json
+
+resp = requests.post('http://127.0.0.1:5001/logs', json={
+    'shared_secret': 'your-shared-secret',
+    'service_name':  'nginx.service',
+    'start_date':    '2024-01-15 00:00:00',
+    'end_date':      '2024-01-15 23:59:59',
+})
+data = resp.json()
+print(f'{data[\"count\"]} entries')
+for e in data['entries']:
+    print(e.get('MESSAGE', ''))
+"
+```
+
+### Python script
+
+```python
+import requests
+from datetime import datetime, timedelta
+
+DAEMON_URL   = "http://127.0.0.1:5001"
+SHARED_SECRET = "your-shared-secret"
+
+def fetch_logs(service, hours=48):
+    now   = datetime.now()
+    since = now - timedelta(hours=hours)
+    resp  = requests.post(
+        f"{DAEMON_URL}/logs",
+        json={
+            "shared_secret": SHARED_SECRET,
+            "service_name":  service,
+            "start_date":    since.strftime("%Y-%m-%d %H:%M:%S"),
+            "end_date":      now.strftime("%Y-%m-%d %H:%M:%S"),
+        },
+        timeout=35,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+data = fetch_logs("nginx.service")
+print(f"Fetched {data['count']} entries")
+for entry in data["entries"]:
+    print(entry.get("MESSAGE", ""))
+```
+
 ## Gunicorn
 
 `gunicorn.conf.py` binds to `0.0.0.0:5001` and spawns `CPU count` sync workers. Each worker may fork a `journalctl` subprocess per request, so the worker count is kept lower than the server's default. Adjust `workers` and `bind` as needed.
