@@ -10,6 +10,9 @@ import secrets
 from datetime import datetime, timedelta
 from functools import wraps
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import requests
 from authlib.integrations.flask_client import OAuth
 from flask import (

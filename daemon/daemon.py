@@ -8,6 +8,9 @@ import subprocess
 import json
 import re
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
