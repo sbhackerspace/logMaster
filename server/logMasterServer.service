@@ -6,21 +6,20 @@ Wants=logMasterDaemon.service
 
 [Service]
 Type=simple
-User=logmaster
-Group=logmaster
-WorkingDirectory=/root/logmaster/server
-EnvironmentFile=/root/logmaster/server/.env
-ExecStart=/root/logmaster/server/.venv/bin/python logMasterServer.py
+User=root
+WorkingDirectory=/root/logMaster/server
+EnvironmentFile=/root/logMaster/server/.env
+ExecStart=/root/logMaster/server/.venv/bin/python logMasterServer.py
 Restart=on-failure
 RestartSec=5
-SyslogIdentifier=logmaster-server
+SyslogIdentifier=logMaster-server
 
 # Hardening
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/root/logmaster/server
+ReadWritePaths=/root/logMaster/server
 
 [Install]
 WantedBy=multi-user.target
