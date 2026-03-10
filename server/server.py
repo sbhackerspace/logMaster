@@ -75,6 +75,39 @@ def login_required(f):
     return decorated
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _default_window():
+    """Return (start, end) strings covering the last 2 days."""
+    now = datetime.now()
+    return (
+        (now - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M"),
+        now.strftime("%Y-%m-%dT%H:%M"),
+    )
+
+
+def _query_daemon(service_name, start_date, end_date):
+    """Call the daemon and return (log_data, api_error)."""
+    daemon_url = SERVICES_MAP.get(service_name, {}).get("address", LOG_API_URL).rstrip("/")
+    payload = {
+        "shared_secret": LOG_API_SHARED_SECRET,
+        "service_name": service_name,
+        "start_date": start_date.replace("T", " "),
+        "end_date": end_date.replace("T", " "),
+    }
+    try:
+        resp = requests.post(f"{daemon_url}/logs", json=payload, timeout=35)
+        if resp.ok:
+            return resp.json(), None
+        return None, resp.json().get("error", f"API returned {resp.status_code}")
+    except requests.exceptions.ConnectionError:
+        return None, f"Could not connect to Log API at {daemon_url}"
+    except requests.exceptions.Timeout:
+        return None, "Log API request timed out"
+    except Exception as exc:  # noqa: BLE001
+        return None, str(exc)
+
+
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -84,79 +117,21 @@ def index():
     if active_tab not in SERVICES_MAP:
         active_tab = SERVICES[0]["service_name"] if SERVICES else ""
 
-    today = datetime.now().strftime("%Y-%m-%dT%H:%M")
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M")
+    default_start, default_end = _default_window()
+    start_date = request.args.get("start_date", default_start)
+    end_date = request.args.get("end_date", default_end)
+
+    log_data = None
+    api_error = None
+
+    if active_tab:
+        log_data, api_error = _query_daemon(active_tab, start_date, end_date)
 
     return render_template(
         "index.html",
         user=session["user"],
         services=SERVICES,
         active_tab=active_tab,
-        today=today,
-        yesterday=yesterday,
-    )
-
-
-@app.route("/logs", methods=["POST"])
-@login_required
-def fetch_logs():
-    service_name = request.form.get("service_name", "").strip()
-    start_date = request.form.get("start_date", "").strip()
-    end_date = request.form.get("end_date", "").strip()
-
-    # Normalise datetime-local value (browser sends "YYYY-MM-DDTHH:MM")
-    start_date = start_date.replace("T", " ")
-    end_date = end_date.replace("T", " ")
-
-    errors = []
-    if not service_name:
-        errors.append("Service name is required.")
-    if not start_date:
-        errors.append("Start date is required.")
-    if not end_date:
-        errors.append("End date is required.")
-
-    if errors:
-        for e in errors:
-            flash(e, "error")
-        return redirect(url_for("index"))
-
-    # Resolve daemon address via map lookup, fall back to global LOG_API_URL
-    daemon_url = SERVICES_MAP.get(service_name, {}).get("address", LOG_API_URL).rstrip("/")
-
-    payload = {
-        "shared_secret": LOG_API_SHARED_SECRET,
-        "service_name": service_name,
-        "start_date": start_date,
-        "end_date": end_date,
-    }
-
-    api_error = None
-    log_data = None
-
-    try:
-        resp = requests.post(
-            f"{daemon_url}/logs",
-            json=payload,
-            timeout=35,
-        )
-        if resp.ok:
-            log_data = resp.json()
-        else:
-            api_error = resp.json().get("error", f"API returned {resp.status_code}")
-    except requests.exceptions.ConnectionError:
-        api_error = f"Could not connect to Log API at {LOG_API_URL}"
-    except requests.exceptions.Timeout:
-        api_error = "Log API request timed out"
-    except Exception as exc:  # noqa: BLE001
-        api_error = str(exc)
-
-    return render_template(
-        "logs.html",
-        user=session["user"],
-        services=SERVICES,
-        active_tab=service_name,
-        service_name=service_name,
         start_date=start_date,
         end_date=end_date,
         log_data=log_data,

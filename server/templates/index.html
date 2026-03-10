@@ -1,28 +1,112 @@
 {% extends "base.html" %}
-{% block title %}logMaster — {{ active_tab or "Query Logs" }}{% endblock %}
+{% block title %}logMaster — {{ active_tab or "Logs" }}{% endblock %}
 
 {% block extra_style %}
-.hero { margin-bottom: 1.5rem; }
-.hero h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: .25rem; }
-.hero p  { font-size: .875rem; color: var(--muted); }
-.service-label {
-  font-size: .75rem;
-  text-transform: uppercase;
-  letter-spacing: .05em;
-  color: var(--muted);
-  margin-bottom: .35rem;
-}
-.service-badge {
-  display: inline-flex;
+/* ── page header ── */
+.page-header {
+  display: flex;
   align-items: center;
-  gap: .4rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+.page-header h1 { font-size: 1.2rem; font-weight: 700; flex: 1; }
+
+/* ── date form ── */
+.date-form {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.date-form .form-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; }
+.field { display: flex; flex-direction: column; gap: .35rem; flex: 1; min-width: 180px; }
+.field label { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.field input {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  color: var(--text);
   padding: .5rem .75rem;
   font-size: .9rem;
-  color: var(--accent);
+  outline: none;
+  transition: border-color .15s;
+}
+.field input:focus { border-color: var(--accent); }
+
+/* ── badge ── */
+.badge {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  font-size: .7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+/* ── search bar ── */
+.search-bar { margin-bottom: 1rem; }
+.search-bar input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: .45rem .75rem;
+  font-size: .875rem;
+  outline: none;
+}
+.search-bar input:focus { border-color: var(--accent); }
+
+/* ── log table ── */
+.log-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
   font-family: var(--font-mono);
+  font-size: .78rem;
+}
+thead th {
+  background: #12151f;
+  padding: .5rem .75rem;
+  text-align: left;
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+tbody tr { border-bottom: 1px solid var(--border); }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: rgba(108,142,247,.06); }
+td { padding: .45rem .75rem; vertical-align: top; }
+td.ts  { white-space: nowrap; color: var(--muted); width: 180px; }
+td.pid { color: var(--muted); width: 60px; text-align: right; }
+td.pri { width: 70px; text-align: center; }
+td.msg { word-break: break-word; color: var(--text); }
+
+.p0,.p1,.p2 { color: var(--danger); font-weight: 700; }
+.p3          { color: var(--danger); }
+.p4          { color: var(--warn); }
+.p5          { color: var(--info); }
+.p6          { color: var(--text); }
+.p7          { color: var(--muted); }
+
+.empty-state { padding: 3rem; text-align: center; color: var(--muted); font-size: .9rem; }
+.error-box {
+  background: #2d1515;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  color: var(--danger);
+  font-size: .875rem;
 }
 .no-services {
   color: var(--muted);
@@ -35,62 +119,92 @@
 {% endblock %}
 
 {% block content %}
-<div class="hero">
-  {% if active_tab %}
-    {% set active_svc = services | selectattr("service_name", "equalto", active_tab) | first %}
+{% if not services %}
+  <div class="no-services">No services configured. Add entries to <code>config.json</code>.</div>
+{% else %}
+  {% set active_svc = services | selectattr("service_name", "equalto", active_tab) | first %}
+
+  <div class="page-header">
     <h1>{{ active_svc.name if active_svc else active_tab }}</h1>
-    <p>Select a time range to query journal entries.</p>
-  {% else %}
-    <h1>Journal Log Viewer</h1>
-    <p>Select a service tab above to begin.</p>
-  {% endif %}
-</div>
+    {% if log_data %}
+      <span class="badge">{{ log_data.count }} entries</span>
+    {% endif %}
+  </div>
 
-{% if services %}
-  <div class="card">
-    <h2>Query Parameters</h2>
-    <form method="POST" action="/logs">
-      {# Service name comes from the active tab — hidden from the user #}
-      <input type="hidden" name="service_name" value="{{ active_tab }}" />
-
-      <div class="form-row" style="margin-bottom:1.25rem">
-        <div>
-          <div class="service-label">Service</div>
-          <div class="service-badge">
-            <span style="color:var(--accent2)">&#9679;</span>
-            {{ active_tab }}
-          </div>
-        </div>
-      </div>
-
+  {# Date range form — GET so the URL is shareable #}
+  <div class="date-form">
+    <form method="GET" action="/">
+      <input type="hidden" name="tab" value="{{ active_tab }}" />
       <div class="form-row">
         <div class="field">
           <label for="start_date">Start</label>
-          <input
-            type="datetime-local"
-            id="start_date"
-            name="start_date"
-            value="{{ yesterday }}"
-            required
-          />
+          <input type="datetime-local" id="start_date" name="start_date" value="{{ start_date }}" required />
         </div>
         <div class="field">
           <label for="end_date">End</label>
-          <input
-            type="datetime-local"
-            id="end_date"
-            name="end_date"
-            value="{{ today }}"
-            required
-          />
+          <input type="datetime-local" id="end_date" name="end_date" value="{{ end_date }}" required />
         </div>
-        <button type="submit" class="btn btn-primary">Fetch Logs</button>
+        <button type="submit" class="btn btn-primary">Refresh</button>
       </div>
     </form>
   </div>
-{% else %}
-  <div class="no-services">
-    No services configured. Add entries to <code>config.json</code>.
-  </div>
+
+  {# Results #}
+  {% if api_error %}
+    <div class="error-box">Error: {{ api_error }}</div>
+
+  {% elif log_data and log_data.count == 0 %}
+    <div class="empty-state">No log entries found for <strong>{{ active_tab }}</strong> in the selected time range.</div>
+
+  {% elif log_data %}
+    <div class="search-bar">
+      <input type="text" id="filterInput" placeholder="Filter messages…" oninput="filterRows()" />
+    </div>
+    <div class="log-wrap">
+      <table id="logTable">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>PRI</th>
+            <th>PID</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in log_data.entries %}
+            {% set ts_us = e.get("__REALTIME_TIMESTAMP", "") %}
+            {% set pri   = e.get("PRIORITY", "6") | string %}
+            {% set pid   = e.get("_PID", "") %}
+            {% set msg   = e.get("MESSAGE", "") %}
+            <tr data-msg="{{ msg | lower }}">
+              <td class="ts">
+                {% if ts_us %}<span class="ts-raw" data-us="{{ ts_us }}">{{ ts_us }}</span>{% endif %}
+              </td>
+              <td class="pri p{{ pri }}">{{ pri }}</td>
+              <td class="pid">{{ pid }}</td>
+              <td class="msg">{{ msg }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
 {% endif %}
+
+<script>
+document.querySelectorAll(".ts-raw").forEach(el => {
+  const us = parseInt(el.dataset.us, 10);
+  if (!isNaN(us)) {
+    el.textContent = new Date(us / 1000).toLocaleString("sv-SE").replace("T", " ");
+  }
+});
+
+function filterRows() {
+  const q = document.getElementById("filterInput").value.toLowerCase();
+  document.querySelectorAll("#logTable tbody tr").forEach(row => {
+    row.style.display = row.dataset.msg.includes(q) ? "" : "none";
+  });
+}
+</script>
 {% endblock %}
