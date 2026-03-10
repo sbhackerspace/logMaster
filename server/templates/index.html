@@ -46,10 +46,17 @@
   border-radius: 999px;
 }
 
-/* ── search bar ── */
-.search-bar { margin-bottom: 1rem; }
-.search-bar input {
-  width: 100%;
+/* ── filter bar ── */
+.filter-bar {
+  display: flex;
+  gap: .75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.filter-bar input[type="text"] {
+  flex: 1;
+  min-width: 180px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -58,7 +65,32 @@
   font-size: .875rem;
   outline: none;
 }
-.search-bar input:focus { border-color: var(--accent); }
+.filter-bar input[type="text"]:focus { border-color: var(--accent); }
+
+.level-pills { display: flex; gap: .4rem; flex-wrap: wrap; }
+.level-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .25rem .65rem;
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  opacity: .45;
+  transition: opacity .15s, border-color .15s;
+  user-select: none;
+}
+.level-pill.active { opacity: 1; border-color: currentColor; }
+.pill-emerg  { color: var(--danger); }
+.pill-alert  { color: var(--danger); }
+.pill-crit   { color: var(--danger); }
+.pill-error  { color: var(--danger); }
+.pill-warn   { color: var(--warn);   }
+.pill-notice { color: var(--info);   }
+.pill-info   { color: var(--text);   }
+.pill-debug  { color: var(--muted);  }
 
 /* ── log table ── */
 .log-wrap {
@@ -88,16 +120,15 @@ tbody tr:last-child { border-bottom: none; }
 tbody tr:hover { background: rgba(108,142,247,.06); }
 td { padding: .45rem .75rem; vertical-align: top; }
 td.ts  { white-space: nowrap; color: var(--muted); width: 180px; }
-td.pid { color: var(--muted); width: 60px; text-align: right; }
-td.pri { width: 70px; text-align: center; }
+td.lvl { width: 72px; font-weight: 600; }
 td.msg { word-break: break-word; color: var(--text); }
 
-.p0,.p1,.p2 { color: var(--danger); font-weight: 700; }
-.p3          { color: var(--danger); }
-.p4          { color: var(--warn); }
-.p5          { color: var(--info); }
-.p6          { color: var(--text); }
-.p7          { color: var(--muted); }
+.lvl-emerg,.lvl-alert,.lvl-crit  { color: var(--danger); font-weight: 700; }
+.lvl-error  { color: var(--danger); }
+.lvl-warn   { color: var(--warn);   }
+.lvl-notice { color: var(--info);   }
+.lvl-info   { color: var(--text);   }
+.lvl-debug  { color: var(--muted);  }
 
 .empty-state { padding: 3rem; text-align: center; color: var(--muted); font-size: .9rem; }
 .error-box {
@@ -157,31 +188,42 @@ td.msg { word-break: break-word; color: var(--text); }
     <div class="empty-state">No log entries found for <strong>{{ active_tab }}</strong> in the selected time range.</div>
 
   {% elif log_data %}
-    <div class="search-bar">
-      <input type="text" id="filterInput" placeholder="Filter messages…" oninput="filterRows()" />
+    <div class="filter-bar">
+      <input type="text" id="filterInput" placeholder="Filter messages…" oninput="applyFilters()" />
+      <div class="level-pills">
+        <span class="level-pill pill-emerg active" data-level="0" onclick="togglePill(this)">Emergency</span>
+        <span class="level-pill pill-alert active" data-level="1" onclick="togglePill(this)">Alert</span>
+        <span class="level-pill pill-crit  active" data-level="2" onclick="togglePill(this)">Critical</span>
+        <span class="level-pill pill-error active" data-level="3" onclick="togglePill(this)">Error</span>
+        <span class="level-pill pill-warn  active" data-level="4" onclick="togglePill(this)">Warning</span>
+        <span class="level-pill pill-notice active" data-level="5" onclick="togglePill(this)">Notice</span>
+        <span class="level-pill pill-info  active" data-level="6" onclick="togglePill(this)">Info</span>
+        <span class="level-pill pill-debug active" data-level="7" onclick="togglePill(this)">Debug</span>
+      </div>
     </div>
     <div class="log-wrap">
       <table id="logTable">
         <thead>
           <tr>
             <th>Timestamp</th>
-            <th>PRI</th>
-            <th>PID</th>
+            <th>Level</th>
             <th>Message</th>
           </tr>
         </thead>
         <tbody>
+          {% set level_names = {"0":"emerg","1":"alert","2":"crit","3":"error","4":"warn","5":"notice","6":"info","7":"debug"} %}
+          {% set level_labels = {"0":"Emerg","1":"Alert","2":"Crit","3":"Error","4":"Warning","5":"Notice","6":"Info","7":"Debug"} %}
           {% for e in log_data.entries %}
             {% set ts_us = e.get("__REALTIME_TIMESTAMP", "") %}
             {% set pri   = e.get("PRIORITY", "6") | string %}
-            {% set pid   = e.get("_PID", "") %}
             {% set msg   = e.get("MESSAGE", "") %}
-            <tr data-msg="{{ msg | lower }}">
+            {% set lvl_class = level_names.get(pri, "info") %}
+            {% set lvl_label = level_labels.get(pri, pri) %}
+            <tr data-msg="{{ msg | lower }}" data-level="{{ pri }}">
               <td class="ts">
                 {% if ts_us %}<span class="ts-raw" data-us="{{ ts_us }}">{{ ts_us }}</span>{% endif %}
               </td>
-              <td class="pri p{{ pri }}">{{ pri }}</td>
-              <td class="pid">{{ pid }}</td>
+              <td class="lvl lvl-{{ lvl_class }}">{{ lvl_label }}</td>
               <td class="msg">{{ msg }}</td>
             </tr>
           {% endfor %}
@@ -193,6 +235,7 @@ td.msg { word-break: break-word; color: var(--text); }
 {% endif %}
 
 <script>
+// Convert microsecond epoch timestamps
 document.querySelectorAll(".ts-raw").forEach(el => {
   const us = parseInt(el.dataset.us, 10);
   if (!isNaN(us)) {
@@ -200,10 +243,27 @@ document.querySelectorAll(".ts-raw").forEach(el => {
   }
 });
 
-function filterRows() {
+// Track which levels are visible (all on by default)
+const visibleLevels = new Set(["0","1","2","3","4","5","6","7"]);
+
+function togglePill(pill) {
+  const level = pill.dataset.level;
+  if (visibleLevels.has(level)) {
+    visibleLevels.delete(level);
+    pill.classList.remove("active");
+  } else {
+    visibleLevels.add(level);
+    pill.classList.add("active");
+  }
+  applyFilters();
+}
+
+function applyFilters() {
   const q = document.getElementById("filterInput").value.toLowerCase();
   document.querySelectorAll("#logTable tbody tr").forEach(row => {
-    row.style.display = row.dataset.msg.includes(q) ? "" : "none";
+    const msgMatch  = row.dataset.msg.includes(q);
+    const levelMatch = visibleLevels.has(row.dataset.level);
+    row.style.display = (msgMatch && levelMatch) ? "" : "none";
   });
 }
 </script>
