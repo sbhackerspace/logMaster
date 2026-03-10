@@ -9,7 +9,7 @@ Type=simple
 User=root
 WorkingDirectory=/root/logMaster/daemon
 EnvironmentFile=/root/logMaster/daemon/.env
-ExecStart=/root/logMaster/daemon/.venv/bin/python logMasterDaemon.py
+ExecStart=/root/logMaster/daemon/.venv/bin/gunicorn -c gunicorn.conf.py logMasterDaemon:app
 Restart=on-failure
 RestartSec=5
 
