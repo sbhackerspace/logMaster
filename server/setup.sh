@@ -61,7 +61,7 @@ if [[ "${1:-}" == "--install-service" ]]; then
 else
   echo ""
   echo "[setup] Done. To start the server manually:"
-  echo "  source .venv/bin/activate && python logMasterServer.py"
+  echo "  source .venv/bin/activate && python server.py"
   echo ""
   echo "  To install as a systemd service (Linux only):"
   echo "  sudo ./setup.sh --install-service"

@@ -64,7 +64,7 @@ if [[ "${1:-}" == "--install-service" ]]; then
 else
   echo ""
   echo "[setup] Done. To start the daemon manually:"
-  echo "  source .venv/bin/activate && python logMasterDaemon.py"
+  echo "  source .venv/bin/activate && python daemon.py"
   echo ""
   echo "  To install as a systemd service (Linux only):"
   echo "  sudo ./setup.sh --install-service"
