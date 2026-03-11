@@ -17,6 +17,7 @@ import requests
 from authlib.integrations.flask_client import OAuth
 from flask import (
     Flask,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -121,12 +122,6 @@ def index():
     start_date = request.args.get("start_date", default_start)
     end_date = request.args.get("end_date", default_end)
 
-    log_data = None
-    api_error = None
-
-    if active_tab:
-        log_data, api_error = _query_daemon(active_tab, start_date, end_date)
-
     return render_template(
         "index.html",
         user=session["user"],
@@ -134,9 +129,24 @@ def index():
         active_tab=active_tab,
         start_date=start_date,
         end_date=end_date,
-        log_data=log_data,
-        api_error=api_error,
     )
+
+
+@app.route("/api/logs")
+@login_required
+def api_logs():
+    tab = request.args.get("tab", "")
+    if tab not in SERVICES_MAP:
+        return jsonify({"error": "Unknown service"}), 400
+
+    default_start, default_end = _default_window()
+    start_date = request.args.get("start_date", default_start)
+    end_date = request.args.get("end_date", default_end)
+
+    log_data, api_error = _query_daemon(tab, start_date, end_date)
+    if api_error:
+        return jsonify({"error": api_error}), 502
+    return jsonify(log_data)
 
 
 @app.route("/login")

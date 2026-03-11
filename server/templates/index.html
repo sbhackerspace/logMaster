@@ -2,7 +2,6 @@
 {% block title %}logMaster — {{ active_tab or "Logs" }}{% endblock %}
 
 {% block extra_style %}
-/* ── page header ── */
 .page-header {
   display: flex;
   align-items: center;
@@ -12,7 +11,6 @@
 }
 .page-header h1 { font-size: 1.2rem; font-weight: 700; flex: 1; }
 
-/* ── date form ── */
 .date-form {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -35,7 +33,6 @@
 }
 .field input:focus { border-color: var(--accent); }
 
-/* ── badge ── */
 .badge {
   display: inline-block;
   background: var(--accent);
@@ -123,13 +120,14 @@ td.ts  { white-space: nowrap; color: var(--muted); width: 180px; }
 td.lvl { width: 72px; font-weight: 600; }
 td.msg { word-break: break-word; color: var(--text); }
 
-.lvl-emerg,.lvl-alert,.lvl-crit  { color: var(--danger); font-weight: 700; }
+.lvl-emerg,.lvl-alert,.lvl-crit { color: var(--danger); font-weight: 700; }
 .lvl-error  { color: var(--danger); }
 .lvl-warn   { color: var(--warn);   }
 .lvl-notice { color: var(--info);   }
 .lvl-info   { color: var(--text);   }
 .lvl-debug  { color: var(--muted);  }
 
+/* ── states ── */
 .empty-state { padding: 3rem; text-align: center; color: var(--muted); font-size: .9rem; }
 .error-box {
   background: #2d1515;
@@ -147,6 +145,26 @@ td.msg { word-break: break-word; color: var(--text); }
   border: 1px dashed var(--border);
   border-radius: var(--radius);
 }
+
+/* ── loading spinner ── */
+.spinner-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .75rem;
+  padding: 3rem;
+  color: var(--muted);
+  font-size: .9rem;
+}
+.spinner {
+  width: 20px; height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 {% endblock %}
 
 {% block content %}
@@ -157,114 +175,138 @@ td.msg { word-break: break-word; color: var(--text); }
 
   <div class="page-header">
     <h1>{{ active_svc.name if active_svc else active_tab }}</h1>
-    {% if log_data %}
-      <span class="badge">{{ log_data.count }} entries</span>
-    {% endif %}
+    <span class="badge" id="entryCount" style="display:none"></span>
   </div>
 
-  {# Date range form — GET so the URL is shareable #}
   <div class="date-form">
-    <form method="GET" action="/">
-      <input type="hidden" name="tab" value="{{ active_tab }}" />
-      <div class="form-row">
-        <div class="field">
-          <label for="start_date">Start</label>
-          <input type="datetime-local" id="start_date" name="start_date" value="{{ start_date }}" required />
-        </div>
-        <div class="field">
-          <label for="end_date">End</label>
-          <input type="datetime-local" id="end_date" name="end_date" value="{{ end_date }}" required />
-        </div>
-        <button type="submit" class="btn btn-primary">Refresh</button>
+    <div class="form-row">
+      <div class="field">
+        <label for="start_date">Start</label>
+        <input type="datetime-local" id="start_date" value="{{ start_date }}" />
       </div>
-    </form>
+      <div class="field">
+        <label for="end_date">End</label>
+        <input type="datetime-local" id="end_date" value="{{ end_date }}" />
+      </div>
+      <button class="btn btn-primary" onclick="loadLogs()">Refresh</button>
+    </div>
   </div>
 
-  {# Results #}
-  {% if api_error %}
-    <div class="error-box">Error: {{ api_error }}</div>
-
-  {% elif log_data and log_data.count == 0 %}
-    <div class="empty-state">No log entries found for <strong>{{ active_tab }}</strong> in the selected time range.</div>
-
-  {% elif log_data %}
-    <div class="filter-bar">
-      <input type="text" id="filterInput" placeholder="Filter messages…" oninput="applyFilters()" />
-      <div class="level-pills">
-        <span class="level-pill pill-emerg active" data-level="0" onclick="togglePill(this)">Emergency</span>
-        <span class="level-pill pill-alert active" data-level="1" onclick="togglePill(this)">Alert</span>
-        <span class="level-pill pill-crit  active" data-level="2" onclick="togglePill(this)">Critical</span>
-        <span class="level-pill pill-error active" data-level="3" onclick="togglePill(this)">Error</span>
-        <span class="level-pill pill-warn  active" data-level="4" onclick="togglePill(this)">Warning</span>
-        <span class="level-pill pill-notice active" data-level="5" onclick="togglePill(this)">Notice</span>
-        <span class="level-pill pill-info  active" data-level="6" onclick="togglePill(this)">Info</span>
-        <span class="level-pill pill-debug active" data-level="7" onclick="togglePill(this)">Debug</span>
-      </div>
+  <div class="filter-bar" id="filterBar" style="display:none">
+    <input type="text" id="filterInput" placeholder="Filter messages…" oninput="applyFilters()" />
+    <div class="level-pills">
+      <span class="level-pill pill-emerg active" data-level="0" onclick="togglePill(this)">Emergency</span>
+      <span class="level-pill pill-alert active" data-level="1" onclick="togglePill(this)">Alert</span>
+      <span class="level-pill pill-crit  active" data-level="2" onclick="togglePill(this)">Critical</span>
+      <span class="level-pill pill-error active" data-level="3" onclick="togglePill(this)">Error</span>
+      <span class="level-pill pill-warn  active" data-level="4" onclick="togglePill(this)">Warning</span>
+      <span class="level-pill pill-notice active" data-level="5" onclick="togglePill(this)">Notice</span>
+      <span class="level-pill pill-info  active" data-level="6" onclick="togglePill(this)">Info</span>
+      <span class="level-pill pill-debug active" data-level="7" onclick="togglePill(this)">Debug</span>
     </div>
-    <div class="log-wrap">
-      <table id="logTable">
-        <thead>
-          <tr>
-            <th>Timestamp</th>
-            <th>Level</th>
-            <th>Message</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% set level_names = {"0":"emerg","1":"alert","2":"crit","3":"error","4":"warn","5":"notice","6":"info","7":"debug"} %}
-          {% set level_labels = {"0":"Emerg","1":"Alert","2":"Crit","3":"Error","4":"Warning","5":"Notice","6":"Info","7":"Debug"} %}
-          {% for e in log_data.entries %}
-            {% set ts_us = e.get("__REALTIME_TIMESTAMP", "") %}
-            {% set pri   = e.get("PRIORITY", "6") | string %}
-            {% set msg   = e.get("MESSAGE", "") %}
-            {% set lvl_class = level_names.get(pri, "info") %}
-            {% set lvl_label = level_labels.get(pri, pri) %}
-            <tr data-msg="{{ msg | lower }}" data-level="{{ pri }}">
-              <td class="ts">
-                {% if ts_us %}<span class="ts-raw" data-us="{{ ts_us }}">{{ ts_us }}</span>{% endif %}
-              </td>
-              <td class="lvl lvl-{{ lvl_class }}">{{ lvl_label }}</td>
-              <td class="msg">{{ msg }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  {% endif %}
+  </div>
 
+  <div id="logResults"></div>
 {% endif %}
 
 <script>
-// Convert microsecond epoch timestamps
-document.querySelectorAll(".ts-raw").forEach(el => {
-  const us = parseInt(el.dataset.us, 10);
-  if (!isNaN(us)) {
-    el.textContent = new Date(us / 1000).toLocaleString("sv-SE").replace("T", " ");
-  }
-});
+const ACTIVE_TAB  = {{ active_tab | tojson }};
+const LEVEL_NAMES  = {0:"emerg",1:"alert",2:"crit",3:"error",4:"warn",5:"notice",6:"info",7:"debug"};
+const LEVEL_LABELS = {0:"Emerg",1:"Alert",2:"Crit",3:"Error",4:"Warning",5:"Notice",6:"Info",7:"Debug"};
 
-// Track which levels are visible (all on by default)
 const visibleLevels = new Set(["0","1","2","3","4","5","6","7"]);
 
 function togglePill(pill) {
   const level = pill.dataset.level;
-  if (visibleLevels.has(level)) {
-    visibleLevels.delete(level);
-    pill.classList.remove("active");
-  } else {
-    visibleLevels.add(level);
-    pill.classList.add("active");
-  }
+  visibleLevels.has(level) ? visibleLevels.delete(level) : visibleLevels.add(level);
+  pill.classList.toggle("active");
   applyFilters();
 }
 
 function applyFilters() {
   const q = document.getElementById("filterInput").value.toLowerCase();
   document.querySelectorAll("#logTable tbody tr").forEach(row => {
-    const msgMatch  = row.dataset.msg.includes(q);
-    const levelMatch = visibleLevels.has(row.dataset.level);
-    row.style.display = (msgMatch && levelMatch) ? "" : "none";
+    row.style.display = (row.dataset.msg.includes(q) && visibleLevels.has(row.dataset.level)) ? "" : "none";
   });
 }
+
+function fmtTimestamp(us) {
+  if (!us) return "";
+  return new Date(parseInt(us) / 1000).toLocaleString("sv-SE").replace("T", " ");
+}
+
+function showSpinner() {
+  document.getElementById("logResults").innerHTML =
+    `<div class="spinner-wrap"><div class="spinner"></div>Loading logs…</div>`;
+  document.getElementById("filterBar").style.display = "none";
+  document.getElementById("entryCount").style.display = "none";
+}
+
+function showError(msg) {
+  document.getElementById("logResults").innerHTML =
+    `<div class="error-box">Error: ${msg}</div>`;
+}
+
+function renderTable(data) {
+  const badge = document.getElementById("entryCount");
+  badge.textContent = `${data.count} entries`;
+  badge.style.display = "";
+
+  if (data.count === 0) {
+    document.getElementById("logResults").innerHTML =
+      `<div class="empty-state">No log entries found for <strong>${ACTIVE_TAB}</strong> in the selected time range.</div>`;
+    return;
+  }
+
+  const rows = data.entries.map(e => {
+    const pri   = String(e.PRIORITY ?? "6");
+    const msg   = String(e.MESSAGE ?? "");
+    const ts    = fmtTimestamp(e.__REALTIME_TIMESTAMP);
+    const lvlC  = LEVEL_NAMES[parseInt(pri)] ?? "info";
+    const lvlL  = LEVEL_LABELS[parseInt(pri)] ?? pri;
+    return `<tr data-msg="${msg.toLowerCase().replace(/"/g, '&quot;')}" data-level="${pri}">
+      <td class="ts">${ts}</td>
+      <td class="lvl lvl-${lvlC}">${lvlL}</td>
+      <td class="msg">${msg.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</td>
+    </tr>`;
+  }).join("");
+
+  document.getElementById("logResults").innerHTML =
+    `<div class="log-wrap">
+       <table id="logTable">
+         <thead><tr><th>Timestamp</th><th>Level</th><th>Message</th></tr></thead>
+         <tbody>${rows}</tbody>
+       </table>
+     </div>`;
+
+  document.getElementById("filterBar").style.display = "";
+  // Re-apply any active filters after render
+  applyFilters();
+}
+
+async function loadLogs() {
+  if (!ACTIVE_TAB) return;
+
+  const start = document.getElementById("start_date").value;
+  const end   = document.getElementById("end_date").value;
+
+  // Update URL without reload so the link stays shareable
+  const params = new URLSearchParams({ tab: ACTIVE_TAB, start_date: start, end_date: end });
+  history.replaceState(null, "", `/?${params}`);
+
+  showSpinner();
+
+  try {
+    const resp = await fetch(`/api/logs?${params}`);
+    const data = await resp.json();
+    if (!resp.ok) { showError(data.error ?? `HTTP ${resp.status}`); return; }
+    renderTable(data);
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+// Kick off on page load
+loadLogs();
 </script>
 {% endblock %}

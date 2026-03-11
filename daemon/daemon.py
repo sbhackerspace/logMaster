@@ -60,6 +60,7 @@ def get_logs():
         f"--since={start_date}",
         f"--until={end_date}",
         "--no-pager",
+        "--reverse",
     ]
 
     try:
