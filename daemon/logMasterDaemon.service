@@ -12,6 +12,9 @@ EnvironmentFile=/root/logMaster/daemon/.env
 ExecStart=/root/logMaster/daemon/.venv/bin/gunicorn -c gunicorn.conf.py daemon:app
 Restart=on-failure
 RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=logMasterDaemon
 
 # The daemon needs to read the journal. Add logMaster user to the
 # systemd-journal group (see setup.sh) instead of running as root.
@@ -21,7 +24,7 @@ SupplementaryGroups=systemd-journal
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=true
+ProtectHome=false
 ReadWritePaths=/root/logMaster/daemon
 
 [Install]
