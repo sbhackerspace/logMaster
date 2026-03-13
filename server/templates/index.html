@@ -171,7 +171,7 @@ td.msg { word-break: break-word; color: var(--text); }
 {% if not services %}
   <div class="no-services">No services configured. Add entries to <code>config.json</code>.</div>
 {% else %}
-  {% set active_svc = services | selectattr("service_name", "equalto", active_tab) | first %}
+  {% set active_svc = services | selectattr("name", "equalto", active_tab) | first %}
 
   <div class="page-header">
     <h1>{{ active_svc.name if active_svc else active_tab }}</h1>

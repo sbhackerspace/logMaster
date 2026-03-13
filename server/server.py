@@ -60,8 +60,8 @@ with open(CONFIG_PATH) as _f:
 # Ordered list for tab rendering
 SERVICES: list[dict] = _config.get("services", [])
 
-# Map for O(1) lookup by service_name
-SERVICES_MAP: dict[str, dict] = {s["service_name"]: s for s in SERVICES}
+# Map for O(1) lookup by name (unique display name)
+SERVICES_MAP: dict[str, dict] = {s["name"]: s for s in SERVICES}
 
 
 # ── Auth helpers ─────────────────────────────────────────────────────────────
@@ -89,7 +89,8 @@ def _default_window():
 
 def _query_daemon(service_name, start_date, end_date):
     """Call the daemon and return (log_data, api_error)."""
-    daemon_url = SERVICES_MAP.get(service_name, {}).get("address", LOG_API_URL).rstrip("/")
+    svc = next((s for s in SERVICES if s["service_name"] == service_name), {})
+    daemon_url = svc.get("address", LOG_API_URL).rstrip("/")
     payload = {
         "shared_secret": LOG_API_SHARED_SECRET,
         "service_name": service_name,
@@ -116,7 +117,7 @@ def _query_daemon(service_name, start_date, end_date):
 def index():
     active_tab = request.args.get("tab", "")
     if active_tab not in SERVICES_MAP:
-        active_tab = SERVICES[0]["service_name"] if SERVICES else ""
+        active_tab = SERVICES[0]["name"] if SERVICES else ""
 
     default_start, default_end = _default_window()
     start_date = request.args.get("start_date", default_start)
@@ -136,14 +137,15 @@ def index():
 @login_required
 def api_logs():
     tab = request.args.get("tab", "")
-    if tab not in SERVICES_MAP:
+    svc = SERVICES_MAP.get(tab)
+    if not svc:
         return jsonify({"error": "Unknown service"}), 400
 
     default_start, default_end = _default_window()
     start_date = request.args.get("start_date", default_start)
     end_date = request.args.get("end_date", default_end)
 
-    log_data, api_error = _query_daemon(tab, start_date, end_date)
+    log_data, api_error = _query_daemon(svc["service_name"], start_date, end_date)
     if api_error:
         return jsonify({"error": api_error}), 502
     return jsonify(log_data)

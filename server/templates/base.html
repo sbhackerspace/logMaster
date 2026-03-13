@@ -170,8 +170,8 @@
 {% if services %}
 <nav class="tabnav">
   {% for svc in services %}
-    <a class="tab {% if svc.service_name == active_tab %}active{% endif %}"
-       href="/?tab={{ svc.service_name | urlencode }}">
+    <a class="tab {% if svc.name == active_tab %}active{% endif %}"
+       href="/?tab={{ svc.name | urlencode }}">
       <span class="dot"></span>
       {{ svc.name }}
     </a>
