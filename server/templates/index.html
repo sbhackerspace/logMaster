@@ -232,7 +232,9 @@ function applyFilters() {
 
 function fmtTimestamp(us) {
   if (!us) return "";
-  return new Date(parseInt(us) / 1000).toLocaleString("sv-SE").replace("T", " ");
+  return new Date(parseInt(us) / 1000).toLocaleString("sv-SE", {
+    timeZone: "America/Los_Angeles",
+  }).replace("T", " ");
 }
 
 function showSpinner() {
