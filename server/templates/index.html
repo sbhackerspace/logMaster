@@ -17,8 +17,24 @@
   border-radius: var(--radius);
   padding: 1rem 1.25rem;
   margin-bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: .85rem;
 }
 .date-form .form-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; }
+.quick-ranges { display: flex; gap: .5rem; flex-wrap: wrap; }
+.qbtn {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: .8rem;
+  padding: .3rem .8rem;
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.qbtn:hover { color: var(--text); border-color: var(--muted); }
+.qbtn.active { color: var(--accent); border-color: var(--accent); }
 .field { display: flex; flex-direction: column; gap: .35rem; flex: 1; min-width: 180px; }
 .field label { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
 .field input {
@@ -179,6 +195,13 @@ td.msg { word-break: break-word; color: var(--text); }
   </div>
 
   <div class="date-form">
+    <div class="quick-ranges">
+      <button class="qbtn" onclick="setRange(0)">Today</button>
+      <button class="qbtn" onclick="setRange(1)">Yesterday</button>
+      <button class="qbtn" onclick="setRange(2)">Last 2 days</button>
+      <button class="qbtn" onclick="setRange(7)">Last 7 days</button>
+      <button class="qbtn" onclick="setRange(30)">Last 30 days</button>
+    </div>
     <div class="form-row">
       <div class="field">
         <label for="start_date">Start</label>
@@ -210,7 +233,55 @@ td.msg { word-break: break-word; color: var(--text); }
 {% endif %}
 
 <script>
-const ACTIVE_TAB  = {{ active_tab | tojson }};
+const ACTIVE_TAB = {{ active_tab | tojson }};
+
+const TZ = "America/Los_Angeles";
+
+function fmtPST(d) {
+  // Format a Date as "YYYY-MM-DDTHH:MM" in PST/PDT for datetime-local inputs
+  return d.toLocaleString("sv-SE", { timeZone: TZ }).replace(" ", "T").slice(0, 16);
+}
+
+function pstMidnight(daysAgo = 0) {
+  // Return a Date representing midnight PST/PDT, N days ago
+  const now = new Date();
+  // Get the current date components in PST
+  const pstStr = now.toLocaleDateString("sv-SE", { timeZone: TZ }); // "YYYY-MM-DD"
+  const [y, m, day] = pstStr.split("-").map(Number);
+  // Construct midnight in PST by using the offset from a known PST midnight
+  const midnight = new Date(`${pstStr}T00:00:00`);
+  // Shift back by daysAgo
+  midnight.setDate(midnight.getDate() - daysAgo);
+  return midnight;
+}
+
+function setRange(days) {
+  const now = new Date();
+  let start, end;
+
+  if (days === 0) {
+    // Today: PST midnight → now
+    start = pstMidnight(0);
+    end   = now;
+  } else if (days === 1) {
+    // Yesterday: PST midnight yesterday → PST midnight today
+    start = pstMidnight(1);
+    end   = pstMidnight(0);
+  } else {
+    // Last N days: N days ago → now
+    start = new Date(now - days * 864e5);
+    end   = now;
+  }
+
+  document.getElementById("start_date").value = fmtPST(start);
+  document.getElementById("end_date").value   = fmtPST(end);
+
+  // Highlight active quick button
+  document.querySelectorAll(".qbtn").forEach(b => b.classList.remove("active"));
+  event.target.classList.add("active");
+
+  loadLogs();
+}
 const LEVEL_NAMES  = {0:"emerg",1:"alert",2:"crit",3:"error",4:"warn",5:"notice",6:"info",7:"debug"};
 const LEVEL_LABELS = {0:"Emerg",1:"Alert",2:"Crit",3:"Error",4:"Warning",5:"Notice",6:"Info",7:"Debug"};
 
