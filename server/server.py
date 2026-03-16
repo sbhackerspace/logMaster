@@ -9,6 +9,7 @@ import os
 import secrets
 from datetime import datetime, timedelta
 from functools import wraps
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -78,9 +79,46 @@ def login_required(f):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+PST = ZoneInfo("America/Los_Angeles")
+UTC = ZoneInfo("UTC")
+
+
+def _pst_to_utc(dt_str: str) -> str:
+    """Parse a PST/PDT datetime string and return a UTC string for journalctl."""
+    dt_str = dt_str.replace("T", " ")
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            dt = datetime.strptime(dt_str, fmt).replace(tzinfo=PST)
+            return dt.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            continue
+    return dt_str  # fallback: pass through unchanged
+
+
+def _utc_to_pst(dt_str: str) -> str:
+    """Parse a UTC datetime string returned by the daemon and convert to PST."""
+    dt_str = dt_str.replace("T", " ")
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            dt = datetime.strptime(dt_str, fmt).replace(tzinfo=UTC)
+            return dt.astimezone(PST).strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            continue
+    return dt_str  # fallback: pass through unchanged
+
+
+def _normalise_response(data: dict) -> dict:
+    """Convert UTC date fields in a daemon response to PST.
+    __REALTIME_TIMESTAMP is a microsecond epoch and needs no conversion."""
+    for field in ("start_date", "end_date"):
+        if field in data:
+            data[field] = _utc_to_pst(data[field])
+    return data
+
+
 def _default_window():
-    """Return (start, end) strings covering the last 2 days."""
-    now = datetime.now()
+    """Return (start, end) strings covering the last 2 days, in PST."""
+    now = datetime.now(PST)
     return (
         (now - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M"),
         now.strftime("%Y-%m-%dT%H:%M"),
@@ -88,19 +126,20 @@ def _default_window():
 
 
 def _query_daemon(service_name, start_date, end_date):
-    """Call the daemon and return (log_data, api_error)."""
+    """Call the daemon and return (log_data, api_error).
+    Dates are converted from PST to UTC before sending."""
     svc = next((s for s in SERVICES if s["service_name"] == service_name), {})
     daemon_url = svc.get("address", LOG_API_URL).rstrip("/")
     payload = {
         "shared_secret": LOG_API_SHARED_SECRET,
         "service_name": service_name,
-        "start_date": start_date.replace("T", " "),
-        "end_date": end_date.replace("T", " "),
+        "start_date": _pst_to_utc(start_date),
+        "end_date": _pst_to_utc(end_date),
     }
     try:
         resp = requests.post(f"{daemon_url}/logs", json=payload, timeout=35)
         if resp.ok:
-            return resp.json(), None
+            return _normalise_response(resp.json()), None
         return None, resp.json().get("error", f"API returned {resp.status_code}")
     except requests.exceptions.ConnectionError:
         return None, f"Could not connect to Log API at {daemon_url}"
