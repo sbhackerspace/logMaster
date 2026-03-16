@@ -59,7 +59,7 @@ def get_logs():
         "--output=json",
         f"--since={start_date}",
         f"--until={end_date}",
-        "n=1000",
+        "-n", "1000",
         "--no-pager",
         "--reverse",
     ]
