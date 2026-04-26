@@ -7,6 +7,7 @@ import os
 import subprocess
 import json
 import re
+from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -20,8 +21,9 @@ PAGE_SIZE = 500
 
 # Only allow simple systemd unit names (letters, digits, hyphens, underscores, dots)
 _SAFE_UNIT = re.compile(r"^[\w.\-]+$")
-# Journal cursors contain hex digits, '=', ';' only
-_SAFE_CURSOR = re.compile(r"^[a-zA-Z0-9=;]+$")
+# Page cursor = __REALTIME_TIMESTAMP of the oldest entry on the previous page
+# (decimal microseconds since epoch)
+_SAFE_CURSOR = re.compile(r"^[0-9]+$")
 
 
 def _validate_date(value: str) -> bool:
@@ -61,21 +63,31 @@ def get_logs():
     # Fetch PAGE_SIZE + 1 to detect whether more entries exist.
     fetch_n = PAGE_SIZE + 1
 
-    # Run journalctl
-    # --cursor seeks directly to that position; combined with --reverse it reads
-    # backwards from there so journalctl never has to scan the full date range.
+    # When paginating, use the oldest entry's timestamp from the previous page
+    # as an exclusive upper bound so journalctl only scans the older portion.
+    if cursor:
+        try:
+            ts_us = int(cursor)
+            ts_dt = (
+                datetime.fromtimestamp(ts_us / 1_000_000, tz=timezone.utc)
+                - timedelta(microseconds=1)
+            )
+            effective_until = ts_dt.strftime("%Y-%m-%d %H:%M:%S.%f")
+        except (ValueError, OverflowError, OSError):
+            return jsonify({"error": "Invalid cursor value"}), 400
+    else:
+        effective_until = end_date
+
     cmd = [
         "journalctl",
         "-u", service_name,
         "--output=json",
         f"--since={start_date}",
-        f"--until={end_date}",
+        f"--until={effective_until}",
         "--no-pager",
         "--reverse",
         "-n", str(fetch_n),
     ]
-    if cursor:
-        cmd.append(f"--cursor={cursor}")
 
     try:
         result = subprocess.run(
@@ -115,7 +127,9 @@ def get_logs():
 
     has_more = len(entries) > PAGE_SIZE
     entries = entries[:PAGE_SIZE]
-    next_cursor = entries[-1].get("__CURSOR") if has_more and entries else None
+    # next_cursor = realtime timestamp (µs) of the oldest entry on this page.
+    # The next request will use it as an exclusive --until upper bound.
+    next_cursor = entries[-1].get("__REALTIME_TIMESTAMP") if has_more and entries else None
 
     return jsonify({
         "service": service_name,
