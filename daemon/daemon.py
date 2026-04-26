@@ -89,6 +89,8 @@ def get_logs():
         "-n", str(fetch_n),
     ]
 
+    print(f"[journalctl] {' '.join(cmd)}", flush=True)
+
     try:
         result = subprocess.run(
             cmd,
