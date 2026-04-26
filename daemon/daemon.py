@@ -59,9 +59,7 @@ def get_logs():
         return jsonify({"error": "Invalid cursor format"}), 400
 
     # Fetch PAGE_SIZE + 1 to detect whether more entries exist.
-    # When resuming from a cursor, journalctl re-emits the cursor entry itself
-    # as the first line, so request one extra to account for that duplicate.
-    fetch_n = PAGE_SIZE + 1 + (1 if cursor else 0)
+    fetch_n = PAGE_SIZE + 1
 
     # Run journalctl
     # --cursor seeks directly to that position; combined with --reverse it reads
@@ -114,11 +112,6 @@ def get_logs():
                 except (TypeError, ValueError):
                     entry[key] = str(value)
         entries.append(entry)
-
-    # When a cursor was provided journalctl re-emits that entry as the first
-    # line so that callers can verify alignment — drop it.
-    if cursor and entries:
-        entries = entries[1:]
 
     has_more = len(entries) > PAGE_SIZE
     entries = entries[:PAGE_SIZE]
