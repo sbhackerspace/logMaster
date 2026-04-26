@@ -143,6 +143,17 @@ td.msg { word-break: break-word; color: var(--text); }
 .lvl-info   { color: var(--text);   }
 .lvl-debug  { color: var(--muted);  }
 
+/* ── pagination ── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: .85rem 0;
+}
+.page-info { font-size: .8rem; color: var(--muted); }
+.pagination .btn:disabled { opacity: .35; cursor: default; }
+
 /* ── states ── */
 .empty-state { padding: 3rem; text-align: center; color: var(--muted); font-size: .9rem; }
 .error-box {
@@ -321,15 +332,20 @@ function showError(msg) {
 }
 
 function renderTable(data) {
-  const badge = document.getElementById("entryCount");
-  badge.textContent = `${data.count} entries`;
-  badge.style.display = "";
+  const badge   = document.getElementById("entryCount");
+  const hasMore = data.has_more ?? false;
 
   if (data.count === 0) {
+    badge.textContent = "0 entries";
+    badge.style.display = "";
     document.getElementById("logResults").innerHTML =
       `<div class="empty-state">No log entries found for <strong>${ACTIVE_TAB}</strong> in the selected time range.</div>`;
+    document.getElementById("filterBar").style.display = "none";
     return;
   }
+
+  badge.textContent = `Page ${pageIdx + 1} · ${data.count}${hasMore ? "+" : ""} entries`;
+  badge.style.display = "";
 
   const rows = data.entries.map(e => {
     const pri   = String(e.PRIORITY ?? "6");
@@ -344,39 +360,77 @@ function renderTable(data) {
     </tr>`;
   }).join("");
 
+  const hasPrev = pageIdx > 0;
+  const pagination = (hasPrev || hasMore)
+    ? `<div class="pagination">
+         <button class="btn" ${!hasPrev ? "disabled" : ""} onclick="prevPage()">← Prev</button>
+         <span class="page-info">Page ${pageIdx + 1}</span>
+         <button class="btn" ${!hasMore ? "disabled" : ""} onclick="nextPage()">Next →</button>
+       </div>`
+    : "";
+
   document.getElementById("logResults").innerHTML =
     `<div class="log-wrap">
        <table id="logTable">
          <thead><tr><th>Timestamp</th><th>Level</th><th>Message</th></tr></thead>
          <tbody>${rows}</tbody>
        </table>
-     </div>`;
+     </div>${pagination}`;
 
   document.getElementById("filterBar").style.display = "";
-  // Re-apply any active filters after render
   applyFilters();
 }
 
-async function loadLogs() {
+// cursorHistory[i] is the cursor passed to fetch page i.
+// null means "no cursor" (first page).
+let cursorHistory = [null];
+let pageIdx = 0;
+let lastNextCursor = null;
+
+function prevPage() {
+  if (pageIdx > 0) {
+    pageIdx--;
+    _fetchPage(cursorHistory[pageIdx]);
+  }
+}
+
+function nextPage() {
+  if (!lastNextCursor) return;
+  pageIdx++;
+  if (pageIdx >= cursorHistory.length) cursorHistory.push(lastNextCursor);
+  _fetchPage(cursorHistory[pageIdx]);
+}
+
+async function _fetchPage(cursor) {
   if (!ACTIVE_TAB) return;
 
   const start = document.getElementById("start_date").value;
   const end   = document.getElementById("end_date").value;
 
-  // Update URL without reload so the link stays shareable
-  const params = new URLSearchParams({ tab: ACTIVE_TAB, start_date: start, end_date: end });
-  history.replaceState(null, "", `/?${params}`);
+  const urlParams = new URLSearchParams({ tab: ACTIVE_TAB, start_date: start, end_date: end });
+  history.replaceState(null, "", `/?${urlParams}`);
+
+  const apiParams = new URLSearchParams(urlParams);
+  if (cursor) apiParams.set("cursor", cursor);
 
   showSpinner();
 
   try {
-    const resp = await fetch(`/api/logs?${params}`);
+    const resp = await fetch(`/api/logs?${apiParams}`);
     const data = await resp.json();
     if (!resp.ok) { showError(data.error ?? `HTTP ${resp.status}`); return; }
+    lastNextCursor = data.next_cursor ?? null;
     renderTable(data);
   } catch (err) {
     showError(err.message);
   }
+}
+
+async function loadLogs() {
+  cursorHistory = [null];
+  pageIdx = 0;
+  lastNextCursor = null;
+  _fetchPage(null);
 }
 
 // Kick off on page load

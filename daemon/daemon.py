@@ -16,9 +16,12 @@ from flask import Flask, request, jsonify
 app = Flask(__name__)
 
 SHARED_SECRET = os.environ.get("LOG_API_SHARED_SECRET", "")
+PAGE_SIZE = 500
 
 # Only allow simple systemd unit names (letters, digits, hyphens, underscores, dots)
 _SAFE_UNIT = re.compile(r"^[\w.\-]+$")
+# Journal cursors contain hex digits, '=', ';' only
+_SAFE_CURSOR = re.compile(r"^[a-zA-Z0-9=;]+$")
 
 
 def _validate_date(value: str) -> bool:
@@ -44,6 +47,7 @@ def get_logs():
     service_name = data.get("service_name", "").strip()
     start_date = data.get("start_date", "").strip()
     end_date = data.get("end_date", "").strip()
+    cursor = data.get("cursor", "").strip()
 
     if not service_name or not _SAFE_UNIT.match(service_name):
         return jsonify({"error": "Invalid or missing service_name"}), 400
@@ -51,8 +55,17 @@ def get_logs():
         return jsonify({"error": "Invalid or missing start_date (use YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)"}), 400
     if not end_date or not _validate_date(end_date):
         return jsonify({"error": "Invalid or missing end_date (use YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)"}), 400
+    if cursor and not _SAFE_CURSOR.match(cursor):
+        return jsonify({"error": "Invalid cursor format"}), 400
+
+    # Fetch PAGE_SIZE + 1 to detect whether more entries exist.
+    # When resuming from a cursor, journalctl re-emits the cursor entry itself
+    # as the first line, so request one extra to account for that duplicate.
+    fetch_n = PAGE_SIZE + 1 + (1 if cursor else 0)
 
     # Run journalctl
+    # --cursor seeks directly to that position; combined with --reverse it reads
+    # backwards from there so journalctl never has to scan the full date range.
     cmd = [
         "journalctl",
         "-u", service_name,
@@ -61,7 +74,10 @@ def get_logs():
         f"--until={end_date}",
         "--no-pager",
         "--reverse",
+        "-n", str(fetch_n),
     ]
+    if cursor:
+        cmd.append(f"--cursor={cursor}")
 
     try:
         result = subprocess.run(
@@ -99,11 +115,22 @@ def get_logs():
                     entry[key] = str(value)
         entries.append(entry)
 
+    # When a cursor was provided journalctl re-emits that entry as the first
+    # line so that callers can verify alignment — drop it.
+    if cursor and entries:
+        entries = entries[1:]
+
+    has_more = len(entries) > PAGE_SIZE
+    entries = entries[:PAGE_SIZE]
+    next_cursor = entries[-1].get("__CURSOR") if has_more and entries else None
+
     return jsonify({
         "service": service_name,
         "start_date": start_date,
         "end_date": end_date,
         "count": len(entries),
+        "has_more": has_more,
+        "next_cursor": next_cursor,
         "entries": entries,
     })
 

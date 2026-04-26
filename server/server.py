@@ -125,7 +125,7 @@ def _default_window():
     )
 
 
-def _query_daemon(service_name, start_date, end_date):
+def _query_daemon(service_name, start_date, end_date, cursor=""):
     """Call the daemon and return (log_data, api_error).
     Dates are converted from PST to UTC before sending."""
     svc = next((s for s in SERVICES if s["service_name"] == service_name), {})
@@ -135,6 +135,7 @@ def _query_daemon(service_name, start_date, end_date):
         "service_name": service_name,
         "start_date": _pst_to_utc(start_date),
         "end_date": _pst_to_utc(end_date),
+        "cursor": cursor,
     }
     try:
         resp = requests.post(f"{daemon_url}/logs", json=payload, timeout=35)
@@ -183,8 +184,9 @@ def api_logs():
     default_start, default_end = _default_window()
     start_date = request.args.get("start_date", default_start)
     end_date = request.args.get("end_date", default_end)
+    cursor = request.args.get("cursor", "")
 
-    log_data, api_error = _query_daemon(svc["service_name"], start_date, end_date)
+    log_data, api_error = _query_daemon(svc["service_name"], start_date, end_date, cursor)
     if api_error:
         return jsonify({"error": api_error}), 502
     return jsonify(log_data)
